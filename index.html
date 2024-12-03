@@ -1,1 +1,236 @@
-https://github.com/mehmet-arikan/piholeremote.git
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pihole Yönetim Paneli</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+
+        header {
+            background-color: #4CAF50;
+            padding: 10px 20px;
+            color: white;
+            text-align: center;
+        }
+
+        nav ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        nav ul li {
+            display: inline;
+            margin-right: 15px;
+        }
+
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+        }
+
+        main {
+            padding: 20px;
+        }
+
+        .log-section {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            margin-bottom: 15px;
+        }
+
+        button {
+            background-color: #007BFF;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        input[type="text"] {
+            padding: 10px;
+            margin-top: 10px;
+            width: 100%;
+            max-width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f1f1;
+        }
+
+        button.action-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        button.allow {
+            background-color: #28a745;
+        }
+
+        button.block {
+            background-color: #dc3545;
+        }
+
+        button.allow:hover {
+            background-color: #218838;
+        }
+
+        button.block:hover {
+            background-color: #c82333;
+        }
+
+        footer {
+            text-align: center;
+            padding: 10px;
+            background-color: #f1f1f1;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Pihole Yönetim Paneli</h1>
+    </header>
+
+    <main>
+        <section class="log-section">
+            <h2>Ağ Kayıtları</h2>
+            <div class="controls">
+                <input type="text" id="search-bar" placeholder="Domain Ara..." oninput="filterLogs()">
+            </div>
+            <table id="log-table">
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Durum</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Kayıtlar buraya dinamik olarak eklenecek -->
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Pihole Yönetim Paneli</p>
+    </footer>
+
+    <script>
+        const API_URL = "/admin/api.php?getAllQueries&auth=ba1c08c4b4f2bb1f35a769ce49dae670bcf75f450b51810de6d4e3c3c583bd33";
+        const ACTION_URL = "/admin/api.php";
+
+        let logs = [];
+
+        // Pihole API'den verileri çek
+        async function fetchLogs() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                logs = data.data.map(item => ({
+                    domain: item[3],
+                    status: item[4] === "2" ? "Blocked" : "Allowed" // Status 2 = Blocked
+                }));
+                populateLogs();
+            } catch (error) {
+                console.error("Kayıtlar alınamadı:", error);
+            }
+        }
+
+        // Tabloyu doldur
+        function populateLogs() {
+            const tableBody = document.querySelector("#log-table tbody");
+            tableBody.innerHTML = ""; // Tabloyu temizle
+            logs.forEach(log => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${log.domain}</td>
+                    <td>${log.status}</td>
+                    <td>
+                        <button class="action-btn ${log.status === 'Blocked' ? 'allow' : 'block'}" onclick="toggleDomain('${log.domain}', '${log.status}')">
+                            ${log.status === 'Blocked' ? 'İzin Ver' : 'Engelle'}
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Domain statüsünü değiştir
+        async function toggleDomain(domain, currentStatus) {
+            const action = currentStatus === "Blocked" ? "whitelist" : "blacklist";
+            try {
+                await fetch(`${ACTION_URL}?${action}&domain=${domain}&auth=YOUR_API_KEY`);
+                logs = logs.map(log => log.domain === domain ? {
+                    ...log,
+                    status: currentStatus === "Blocked" ? "Allowed" : "Blocked"
+                } : log);
+                populateLogs();
+            } catch (error) {
+                console.error("Domain durumu değiştirilemedi:", error);
+            }
+        }
+
+        // Logları filtrele
+        function filterLogs() {
+            const searchTerm = document.getElementById("search-bar").value.toLowerCase();
+            const filteredLogs = logs.filter(log => log.domain.toLowerCase().includes(searchTerm));
+            renderFilteredLogs(filteredLogs);
+        }
+
+        // Filtrelenmiş logları ekrana yazdır
+        function renderFilteredLogs(filteredLogs) {
+            const tableBody = document.querySelector("#log-table tbody");
+            tableBody.innerHTML = "";
+            filteredLogs.forEach(log => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${log.domain}</td>
+                    <td>${log.status}</td>
+                    <td>
+                        <button class="action-btn ${log.status === 'Blocked' ? 'allow' : 'block'}" onclick="toggleDomain('${log.domain}', '${log.status}')">
+                            ${log.status === 'Blocked' ? 'İzin Ver' : 'Engelle'}
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Sayfa yüklendiğinde logları getir
+        document.addEventListener("DOMContentLoaded", fetchLogs);
+    </script>
+</body>
+</html>
+
